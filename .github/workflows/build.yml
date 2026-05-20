@@ -42,12 +42,12 @@ jobs:
         run: |
           ext=""
           [ "$GOOS" = "windows" ] && ext=".exe"
-          go build -ldflags="-s -w" -o "wl_locations_${GOOS}_${GOARCH}${ext}" .
+          go build -ldflags="-s -w" -o "waveRover_${GOOS}_${GOARCH}${ext}" .
 
       - uses: actions/upload-artifact@v4
         with:
-          name: wl_locations_${{ matrix.goos }}_${{ matrix.goarch }}
-          path: wl_locations_${{ matrix.goos }}_${{ matrix.goarch }}*
+          name: waveRover_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: waveRover_${{ matrix.goos }}_${{ matrix.goarch }}*
 
   build-macos:
     strategy:
@@ -70,7 +70,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: go build -ldflags="-s -w" -o "wl_locations_${GOOS}_${GOARCH}" .
+        run: go build -ldflags="-s -w" -o "waveRover_${GOOS}_${GOARCH}" .
 
       - name: Import signing certificate
         env:
@@ -91,7 +91,7 @@ jobs:
             --options runtime \
             --timestamp \
             --force \
-            wl_locations_${GOOS}_${GOARCH}
+            waveRover_${GOOS}_${GOARCH}
 
       - name: Notarize
         env:
@@ -99,19 +99,19 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          notarytool submit wl_locations_${GOOS}_${GOARCH} \
+          notarytool submit waveRover_${GOOS}_${GOARCH} \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
             --wait
 
       - name: Staple
-        run: xcrun stapler staple wl_locations_${GOOS}_${GOARCH}
+        run: xcrun stapler staple waveRover_${GOOS}_${GOARCH}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: wl_locations_${{ matrix.goos }}_${{ matrix.goarch }}
-          path: wl_locations_${{ matrix.goos }}_${{ matrix.goarch }}
+          name: waveRover_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: waveRover_${{ matrix.goos }}_${{ matrix.goarch }}
 
   release:
     needs: [build, build-macos]

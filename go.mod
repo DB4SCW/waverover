@@ -1,3 +1,3 @@
-module github.com/joergdorgeist/wl_locations
+module github.com/joergdorgeist/waveRover
 
 go 1.26.3

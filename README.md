@@ -7,7 +7,7 @@ Import ADIF files into Wavelog with automatic station location management. The t
 ## Usage
 
 ```
-wl_locations -url <url> -key <key> [options] <file.adi> [file2.adi ...]
+waveRover -url <url> -key <key> [options] <file.adi> [file2.adi ...]
 ```
 
 ### Options
@@ -29,13 +29,13 @@ In Wavelog: User Menu → API → Create Key (read+write required).
 ### Basic import
 
 ```
-wl_locations -url https://log.example.com -key abc123 my_log.adi
+waveRover -url https://log.example.com -key abc123 my_log.adi
 ```
 
 ### Dry run first (recommended)
 
 ```
-wl_locations -url https://log.example.com -key abc123 -dry-run my_log.adi
+waveRover -url https://log.example.com -key abc123 -dry-run my_log.adi
 ```
 
 Output shows all detected station locations and QSO counts without touching Wavelog.
@@ -43,13 +43,13 @@ Output shows all detected station locations and QSO counts without touching Wave
 ### Multiple ADIF files
 
 ```
-wl_locations -url https://log.example.com -key abc123 lotw_export.adi clublog.adi
+waveRover -url https://log.example.com -key abc123 lotw_export.adi clublog.adi
 ```
 
 ### Import a LoTW export
 
 ```
-wl_locations -url https://log.example.com -key abc123 ~/Downloads/lotw_exp.adi
+waveRover -url https://log.example.com -key abc123 ~/Downloads/lotw_exp.adi
 ```
 
 LoTW exports are handled automatically — see [LoTW special handling](#lotw-special-handling) below.
@@ -57,7 +57,7 @@ LoTW exports are handled automatically — see [LoTW special handling](#lotw-spe
 ### Broader grouping with 4-character grids
 
 ```
-wl_locations -url https://log.example.com -key abc123 -grid-precision 4 my_log.adi
+waveRover -url https://log.example.com -key abc123 -grid-precision 4 my_log.adi
 ```
 
 Groups QSOs by 4-char grid field (e.g. `JO30`) instead of 6-char square (e.g. `JO30OO`). Grids in the imported QSOs are truncated to match.
@@ -65,7 +65,7 @@ Groups QSOs by 4-char grid field (e.g. `JO30`) instead of 6-char square (e.g. `J
 ### Match on additional fields (SOTA, POTA, etc.)
 
 ```
-wl_locations -url https://log.example.com -key abc123 \
+waveRover -url https://log.example.com -key abc123 \
   -match-fields "STATION_CALLSIGN,MY_GRIDSQUARE,MY_SOTA" my_log.adi
 ```
 
@@ -76,7 +76,7 @@ QSOs with the same callsign and grid but different SOTA references are treated a
 ```
 export WAVELOG_URL=https://log.example.com
 export WAVELOG_API_KEY=abc123
-wl_locations my_log.adi
+waveRover my_log.adi
 ```
 
 ## Re-running and duplicates
@@ -130,13 +130,13 @@ These transforms only apply when LoTW-specific fields are detected, so regular A
 Requires Go 1.21 or later.
 
 ```
-go build -o wl_locations .
+go build -o waveRover .
 ```
 
 Cross-compile for other platforms:
 
 ```
-GOOS=linux GOARCH=amd64 go build -o wl_locations .
-GOOS=windows GOARCH=amd64 go build -o wl_locations.exe .
-GOOS=darwin GOARCH=arm64 go build -o wl_locations .
+GOOS=linux GOARCH=amd64 go build -o waveRover .
+GOOS=windows GOARCH=amd64 go build -o waveRover.exe .
+GOOS=darwin GOARCH=arm64 go build -o waveRover .
 ```

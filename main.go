@@ -20,7 +20,7 @@ func main() {
 	files := flag.Args()
 
 	if waveURL == "" || waveKey == "" || len(files) == 0 {
-		fmt.Fprintln(os.Stderr, "Usage: wl_locations -url <url> -key <key> [-dry-run] <file.adi> [file2.adi ...]")
+		fmt.Fprintln(os.Stderr, "Usage: waveRover -url <url> -key <key> [-dry-run] <file.adi> [file2.adi ...]")
 		fmt.Fprintln(os.Stderr, "\nFlags:")
 		flag.PrintDefaults()
 		fmt.Fprintln(os.Stderr, "\nEnvironment variables:")
