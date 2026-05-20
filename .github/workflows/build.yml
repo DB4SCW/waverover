@@ -92,7 +92,7 @@ jobs:
           codesign --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp --force "$BINARY"
           zip "${BINARY}.zip" "$BINARY"
           xcrun notarytool submit "${BINARY}.zip" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
-          xcrun stapler staple "$BINARY"
+          xcrun stapler staple "$BINARY" 2>/dev/null || echo "Staple skipped (standalone binary)"
 
       - uses: actions/upload-artifact@v4
         with:
