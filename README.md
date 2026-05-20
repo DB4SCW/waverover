@@ -1,4 +1,6 @@
-# wl_locations
+# WaveRover
+
+<img src="https://github.com/int2001/waverover/blob/master/WR.png" width="400" alt="Logo">
 
 Import ADIF files into Wavelog with automatic station location management. The tool detects unique station locations from your ADIF records, creates missing station profiles in Wavelog, and imports QSOs to the correct profile.
 
