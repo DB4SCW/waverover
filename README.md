@@ -1,0 +1,140 @@
+# wl_locations
+
+Import ADIF files into Wavelog with automatic station location management. The tool detects unique station locations from your ADIF records, creates missing station profiles in Wavelog, and imports QSOs to the correct profile.
+
+## Usage
+
+```
+wl_locations -url <url> -key <key> [options] <file.adi> [file2.adi ...]
+```
+
+### Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-url` | — | Wavelog base URL (or set `WAVELOG_URL`) |
+| `-key` | — | Wavelog API key, read+write (or set `WAVELOG_API_KEY`) |
+| `-dry-run` | false | Parse and show what would happen, but don't import |
+| `-match-fields` | `STATION_CALLSIGN,MY_GRIDSQUARE` | Comma-separated ADIF fields that define a unique station location |
+| `-grid-precision` | `6` | Grid locator precision for grouping. `6` = full grid square, `4` = grid field only |
+
+### Getting your API key
+
+In Wavelog: User Menu → API → Create Key (read+write required).
+
+## Examples
+
+### Basic import
+
+```
+wl_locations -url https://log.example.com -key abc123 my_log.adi
+```
+
+### Dry run first (recommended)
+
+```
+wl_locations -url https://log.example.com -key abc123 -dry-run my_log.adi
+```
+
+Output shows all detected station locations and QSO counts without touching Wavelog.
+
+### Multiple ADIF files
+
+```
+wl_locations -url https://log.example.com -key abc123 lotw_export.adi clublog.adi
+```
+
+### Import a LoTW export
+
+```
+wl_locations -url https://log.example.com -key abc123 ~/Downloads/lotw_exp.adi
+```
+
+LoTW exports are handled automatically — see [LoTW special handling](#lotw-special-handling) below.
+
+### Broader grouping with 4-character grids
+
+```
+wl_locations -url https://log.example.com -key abc123 -grid-precision 4 my_log.adi
+```
+
+Groups QSOs by 4-char grid field (e.g. `JO30`) instead of 6-char square (e.g. `JO30OO`). Grids in the imported QSOs are truncated to match.
+
+### Match on additional fields (SOTA, POTA, etc.)
+
+```
+wl_locations -url https://log.example.com -key abc123 \
+  -match-fields "STATION_CALLSIGN,MY_GRIDSQUARE,MY_SOTA" my_log.adi
+```
+
+QSOs with the same callsign and grid but different SOTA references are treated as separate station locations. Any ADIF `MY_*` field is supported: `MY_SOTA`, `MY_POTA`, `MY_WWFF`, `MY_SIG`, `MY_SIG_INFO`, `MY_CITY`, `MY_IOTA`, `MY_STATE`, etc.
+
+### Using environment variables
+
+```
+export WAVELOG_URL=https://log.example.com
+export WAVELOG_API_KEY=abc123
+wl_locations my_log.adi
+```
+
+## Re-running and duplicates
+
+The tool is idempotent — you can safely re-import the same ADIF file. QSOs that already exist in Wavelog are detected as duplicates and skipped. The summary at the end lists each duplicate by callsign, band, mode, date, and time:
+
+```
+=== Summary ===
+Imported: 17950
+Duplicates skipped: 10
+
+Duplicates:
+  W1AW 20M FT8 20260515 142300
+  DL2XYZ 40M CW 20260516 080100
+  ...
+```
+
+If a batch contains a mix of new and duplicate QSOs, the new ones are imported and only the duplicates are skipped.
+
+## LoTW special handling
+
+When importing an ADIF from [ARRL Logbook of the World](https://lotw.arrl.org/), the tool applies several transforms automatically:
+
+**Field conversion:**
+- `APP_LoTW_RXQSL` (LoTW QSL received timestamp) is converted to ADIF-compliant `LOTW_QSLRDATE` + `LOTW_QSL_RCVD=Y`
+- `APP_LoTW_RXQSO` (LoTW QSO insert timestamp) is converted to `LOTW_QSLSDATE` + `LOTW_QSL_SENT=Y`
+- Date format is converted from LoTW format (`2026-05-20 10:46:46`) to ADIF format (`20260520`)
+
+**QSL field cleanup:**
+- `QSL_RCVD` and `QSLRDATE` are stripped from LoTW exports — their content is unreliable for LoTW QSLs and would conflict with the `LOTW_QSL_*` fields above
+
+**RST defaults:**
+- Missing `RST_SENT` and `RST_RCVD` are filled based on mode: `59` for phone (SSB, FM, AM, USB, LSB), `599` for CW, `0` for digital modes (FT8, RTTY, etc.)
+
+These transforms only apply when LoTW-specific fields are detected, so regular ADIF files are left unchanged.
+
+## How it works
+
+1. Parses all ADIF files and extracts QSO records
+2. Groups QSOs by unique station locations (default: callsign + grid square)
+3. Fetches existing station profiles from Wavelog
+4. For each location:
+   - Matches against existing profiles (callsign, grid, and any additional match fields)
+   - Creates a new station profile if no match is found
+   - Imports all QSOs in 1MB chunks
+5. If a chunk contains duplicates, parses the API response to identify which QSOs are dupes, imports the remaining QSOs individually
+6. Prints a summary with counts and details for any duplicates or errors
+
+## Building
+
+Requires Go 1.21 or later.
+
+```
+go build -o wl_locations .
+```
+
+Cross-compile for other platforms:
+
+```
+GOOS=linux GOARCH=amd64 go build -o wl_locations .
+GOOS=windows GOARCH=amd64 go build -o wl_locations.exe .
+GOOS=darwin GOARCH=arm64 go build -o wl_locations .
+```
