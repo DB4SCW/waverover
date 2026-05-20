@@ -42,7 +42,7 @@ jobs:
         run: |
           ext=""
           [ "$GOOS" = "windows" ] && ext=".exe"
-          go build -ldflags="-s -w" -o "waveRover_${{ matrix.goos }}_${{ matrix.goarch }}${ext}" .
+          go build -ldflags="-s -w" -o "waveRover_${GOOS}_${GOARCH}${ext}" .
 
       - uses: actions/upload-artifact@v4
         with:
@@ -81,30 +81,18 @@ jobs:
           security list-keychains -d user -s build.keychain
           rm certificate.p12
 
-      - name: Sign binary
+      - name: Sign and notarize
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-        run: |
-          codesign --sign "$APPLE_SIGNING_IDENTITY" \
-            --options runtime \
-            --timestamp \
-            --force \
-            waveRover_${{ matrix.goos }}_${{ matrix.goarch }}
-
-      - name: Notarize
-        env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          xcrun notarytool submit waveRover_${{ matrix.goos }}_${{ matrix.goarch }} \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait
-
-      - name: Staple
-        run: xcrun stapler staple waveRover_${{ matrix.goos }}_${{ matrix.goarch }}
+          BINARY="waveRover_${{ matrix.goos }}_${{ matrix.goarch }}"
+          codesign --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp --force "$BINARY"
+          zip "${BINARY}.zip" "$BINARY"
+          xcrun notarytool submit "${BINARY}.zip" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "$BINARY"
 
       - uses: actions/upload-artifact@v4
         with:
