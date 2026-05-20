@@ -81,6 +81,7 @@ jobs:
           security create-keychain -p actions build.keychain
           security import certificate.p12 -P "$APPLE_CERTIFICATE_PASSWORD" -k build.keychain -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -k actions build.keychain
+          security list-keychains -d user -s build.keychain
           rm certificate.p12
 
       - name: Sign binary
