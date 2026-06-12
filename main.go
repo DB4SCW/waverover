@@ -13,7 +13,7 @@ func main() {
 	key := flag.String("key", "", "Wavelog API key (read+write) or set WAVELOG_API_KEY")
 	dryRun := flag.Bool("dry-run", false, "Show what would happen without making changes")
 	matchFields := flag.String("match-fields", "STATION_CALLSIGN,MY_GRIDSQUARE", "Comma-separated ADIF fields for station location matching")
-	nameFormat := flag.String("name-format", "", "Profile name template with {FIELD} placeholders from match fields, e.g. \"{STATION_CALLSIGN} @ {MY_SOTA}\" (empty: auto from match fields)")
+	nameFormat := flag.String("name-format", "", "Profile name template with {FIELD} placeholders from match fields, e.g. \"{STATION_CALLSIGN} @ {MY_SOTA_REF}\" (empty: auto from match fields)")
 	gridPrecision := flag.Int("grid-precision", 6, "Grid locator precision (4 or 6)")
 	flag.Parse()
 

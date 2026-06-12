@@ -20,7 +20,7 @@ waveRover -url <url> -key <key> [options] <file.adi> [file2.adi ...]
 | `-key` | — | Wavelog API key, read+write (or set `WAVELOG_API_KEY`) |
 | `-dry-run` | false | Parse and show what would happen, but don't import |
 | `-match-fields` | `STATION_CALLSIGN,MY_GRIDSQUARE` | Comma-separated ADIF fields that define a unique station location |
-| `-name-format` | — | Profile name template with `{FIELD}` placeholders from match fields, e.g. `"{STATION_CALLSIGN} @ {MY_SOTA}"`. Empty: name is built automatically from all match field values |
+| `-name-format` | — | Profile name template with `{FIELD}` placeholders from match fields, e.g. `"{STATION_CALLSIGN} @ {MY_SOTA_REF}"`. Empty: name is built automatically from all match field values |
 | `-grid-precision` | `6` | Grid locator precision for grouping. `6` = full grid square, `4` = grid field only |
 
 ### Getting your API key
@@ -69,10 +69,10 @@ Groups QSOs by 4-char grid field (e.g. `JO30`) instead of 6-char square (e.g. `J
 
 ```
 waveRover -url https://log.example.com -key abc123 \
-  -match-fields "STATION_CALLSIGN,MY_GRIDSQUARE,MY_SOTA" my_log.adi
+  -match-fields "STATION_CALLSIGN,MY_GRIDSQUARE,MY_SOTA_REF" my_log.adi
 ```
 
-QSOs with the same callsign and grid but different SOTA references are treated as separate station locations. Any ADIF `MY_*` field is supported: `MY_SOTA`, `MY_POTA`, `MY_WWFF`, `MY_SIG`, `MY_SIG_INFO`, `MY_CITY`, `MY_IOTA`, `MY_STATE`, etc.
+QSOs with the same callsign and grid but different SOTA references are treated as separate station locations. Any ADIF `MY_*` field is supported: `MY_SOTA_REF`, `MY_POTA_REF`, `MY_WWFF_REF`, `MY_SIG`, `MY_SIG_INFO`, `MY_CITY`, `MY_IOTA`, `MY_STATE`, etc.
 
 ### Profile naming
 
@@ -82,8 +82,8 @@ Use `-name-format` to define your own scheme with `{FIELD}` placeholders (match 
 
 ```
 waveRover -url https://log.example.com -key abc123 \
-  -match-fields "STATION_CALLSIGN,MY_SOTA" \
-  -name-format "SOTA {MY_SOTA} ({STATION_CALLSIGN})" my_log.adi
+  -match-fields "STATION_CALLSIGN,MY_SOTA_REF" \
+  -name-format "SOTA {MY_SOTA_REF} ({STATION_CALLSIGN})" my_log.adi
 ```
 
 Creates profiles like `SOTA DM/RP-001 (DL1ABC)`. Placeholders referencing fields not listed in `-match-fields` produce a warning and stay empty.
