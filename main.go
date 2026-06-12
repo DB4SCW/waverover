@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -19,10 +20,10 @@ func main() {
 
 	waveURL := coalesce(*url, os.Getenv("WAVELOG_URL"))
 	waveKey := coalesce(*key, os.Getenv("WAVELOG_API_KEY"))
-	files := flag.Args()
+	files := expandFiles(flag.Args())
 
 	if waveURL == "" || waveKey == "" || len(files) == 0 {
-		fmt.Fprintln(os.Stderr, "Usage: waveRover -url <url> -key <key> [-dry-run] <file.adi> [file2.adi ...]")
+		fmt.Fprintln(os.Stderr, "Usage: waveRover -url <url> -key <key> [-dry-run] <file.adi> [file2.adi ...]  (wildcards supported, e.g. *.adi)")
 		fmt.Fprintln(os.Stderr, "\nFlags:")
 		flag.PrintDefaults()
 		fmt.Fprintln(os.Stderr, "\nEnvironment variables:")
@@ -161,6 +162,19 @@ func qsoLabel(q *QSO) string {
 		parts = append(parts, t)
 	}
 	return strings.Join(parts, " ")
+}
+
+func expandFiles(files []string) []string {
+	var expanded []string
+	for _, f := range files {
+		matches, err := filepath.Glob(f)
+		if err != nil || len(matches) == 0 {
+			expanded = append(expanded, f)
+		} else {
+			expanded = append(expanded, matches...)
+		}
+	}
+	return expanded
 }
 
 func parseFile(path string) ([]QSO, error) {
