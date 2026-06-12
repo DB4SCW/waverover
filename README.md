@@ -20,6 +20,7 @@ waveRover -url <url> -key <key> [options] <file.adi> [file2.adi ...]
 | `-key` | — | Wavelog API key, read+write (or set `WAVELOG_API_KEY`) |
 | `-dry-run` | false | Parse and show what would happen, but don't import |
 | `-match-fields` | `STATION_CALLSIGN,MY_GRIDSQUARE` | Comma-separated ADIF fields that define a unique station location |
+| `-name-format` | — | Profile name template with `{FIELD}` placeholders from match fields, e.g. `"{STATION_CALLSIGN} @ {MY_SOTA}"`. Empty: name is built automatically from all match field values |
 | `-grid-precision` | `6` | Grid locator precision for grouping. `6` = full grid square, `4` = grid field only |
 
 ### Getting your API key
@@ -72,6 +73,20 @@ waveRover -url https://log.example.com -key abc123 \
 ```
 
 QSOs with the same callsign and grid but different SOTA references are treated as separate station locations. Any ADIF `MY_*` field is supported: `MY_SOTA`, `MY_POTA`, `MY_WWFF`, `MY_SIG`, `MY_SIG_INFO`, `MY_CITY`, `MY_IOTA`, `MY_STATE`, etc.
+
+### Profile naming
+
+By default, new station profiles are named from all match field values: the first value, then `@`, then the rest. With the match fields above, a profile becomes e.g. `DL1ABC @ JO30OO DM/RP-001`.
+
+Use `-name-format` to define your own scheme with `{FIELD}` placeholders (match fields only):
+
+```
+waveRover -url https://log.example.com -key abc123 \
+  -match-fields "STATION_CALLSIGN,MY_SOTA" \
+  -name-format "SOTA {MY_SOTA} ({STATION_CALLSIGN})" my_log.adi
+```
+
+Creates profiles like `SOTA DM/RP-001 (DL1ABC)`. Placeholders referencing fields not listed in `-match-fields` produce a warning and stay empty.
 
 ### Using environment variables
 
@@ -137,7 +152,7 @@ Note the following version requirements:
 3. Fetches existing station profiles from Wavelog
 4. For each location:
    - Matches against existing profiles (callsign, grid, and any additional match fields)
-   - Creates a new station profile if no match is found
+   - Creates a new station profile if no match is found (named from the match field values, or your `-name-format` template)
    - Imports all QSOs in 1MB chunks
 5. If a chunk contains duplicates, parses the API response to identify which QSOs are dupes, imports the remaining QSOs individually
 6. Prints a summary with counts and details for any duplicates or errors

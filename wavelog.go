@@ -111,11 +111,12 @@ func (c *WavelogClient) GetStationProfiles() ([]StationProfile, map[string]bool,
 	return profiles, returnedFields, nil
 }
 
-func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []string) (string, error) {
+func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []string, nameFormat string) (string, error) {
 	fields := loc.QSOs[0].Fields
+	name := loc.DisplayName(matchFields, nameFormat)
 
 	payload := map[string]string{
-		"station_profile_name": loc.DisplayName(matchFields),
+		"station_profile_name": name,
 		"station_active":       "1",
 		"link_active_logbook":  "1",
 	}
@@ -140,10 +141,10 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 
 	switch {
 	case resp.StatusCode == http.StatusCreated:
-		fmt.Printf("  Created station profile: %s\n", loc.DisplayName(matchFields))
+		fmt.Printf("  Created station profile: %s\n", name)
 		return c.resolveProfileID(loc, matchFields)
 	case resp.StatusCode == http.StatusOK && apiResp.Status == "dupe":
-		fmt.Printf("  Station profile already exists (dupe): %s\n", loc.DisplayName(matchFields))
+		fmt.Printf("  Station profile already exists (dupe): %s\n", name)
 		return c.resolveProfileID(loc, matchFields)
 	default:
 		return "", fmt.Errorf("create_station returned %d: %s", resp.StatusCode, apiResp.Message)
@@ -488,7 +489,7 @@ func MatchProfile(loc StationLocation, profiles []StationProfile, matchFields []
 			return p.ID, nil
 		}
 	}
-	return "", fmt.Errorf("no matching profile for %s", loc.DisplayName(matchFields))
+	return "", fmt.Errorf("no matching profile for %s", loc.DisplayName(matchFields, ""))
 }
 
 func profileMatches(loc StationLocation, p StationProfile, matchFields []string, returnedFields map[string]bool) bool {

@@ -2,8 +2,16 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+var placeholderRe = regexp.MustCompile(`\{[A-Za-z_]+\}`)
+
+// placeholderField extracts the uppercased field name from a "{FIELD}" match.
+func placeholderField(m string) string {
+	return strings.ToUpper(m[1 : len(m)-1])
+}
 
 type StationLocation struct {
 	Key   string
@@ -79,15 +87,31 @@ func normalizeGrid(grid string, precision int) string {
 	return grid
 }
 
-func (sl *StationLocation) DisplayName(matchFields []string) string {
-	call := sl.Match["STATION_CALLSIGN"]
-	grid := sl.Match["MY_GRIDSQUARE"]
+// DisplayName builds the profile name. With nameFormat, {FIELD} placeholders
+// are replaced by the location's match values. Without it, the name is built
+// from all non-empty match field values: "FIRST @ REST..." .
+func (sl *StationLocation) DisplayName(matchFields []string, nameFormat string) string {
+	if nameFormat != "" {
+		name := placeholderRe.ReplaceAllStringFunc(nameFormat, func(m string) string {
+			return sl.Match[placeholderField(m)]
+		})
+		if name = strings.TrimSpace(name); name != "" {
+			return name
+		}
+	}
 
-	if call != "" && grid != "" {
-		return fmt.Sprintf("%s @ %s", call, grid)
+	var parts []string
+	for _, f := range matchFields {
+		if v := sl.Match[strings.ToUpper(f)]; v != "" {
+			parts = append(parts, v)
+		}
 	}
-	if call != "" {
-		return call
+	switch len(parts) {
+	case 0:
+		return sl.Key
+	case 1:
+		return parts[0]
+	default:
+		return fmt.Sprintf("%s @ %s", parts[0], strings.Join(parts[1:], " "))
 	}
-	return sl.Key
 }

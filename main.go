@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -12,6 +13,7 @@ func main() {
 	key := flag.String("key", "", "Wavelog API key (read+write) or set WAVELOG_API_KEY")
 	dryRun := flag.Bool("dry-run", false, "Show what would happen without making changes")
 	matchFields := flag.String("match-fields", "STATION_CALLSIGN,MY_GRIDSQUARE", "Comma-separated ADIF fields for station location matching")
+	nameFormat := flag.String("name-format", "", "Profile name template with {FIELD} placeholders from match fields, e.g. \"{STATION_CALLSIGN} @ {MY_SOTA}\" (empty: auto from match fields)")
 	gridPrecision := flag.Int("grid-precision", 6, "Grid locator precision (4 or 6)")
 	flag.Parse()
 
@@ -30,6 +32,7 @@ func main() {
 	}
 
 	fields := parseMatchFields(*matchFields)
+	warnUnknownPlaceholders(*nameFormat, fields)
 	fmt.Printf("Match fields: %v\nGrid precision: %d\nDry run: %v\n\n", fields, *gridPrecision, *dryRun)
 
 	var allQSOs []QSO
@@ -53,14 +56,14 @@ func main() {
 	locations := GroupByLocation(allQSOs, fields, *gridPrecision)
 	fmt.Printf("Unique station locations: %d\n\n", len(locations))
 	for i, loc := range locations {
-		fmt.Printf("  [%d] %s (%d QSOs)\n", i+1, loc.DisplayName(fields), len(loc.QSOs))
+		fmt.Printf("  [%d] %s (%d QSOs)\n", i+1, loc.DisplayName(fields, *nameFormat), len(loc.QSOs))
 	}
 	fmt.Println()
 
 	if *dryRun {
 		fmt.Println("Dry run — no changes made.")
 		for _, loc := range locations {
-			fmt.Printf("  Would import: %s (%d QSOs)\n", loc.DisplayName(fields), len(loc.QSOs))
+			fmt.Printf("  Would import: %s (%d QSOs)\n", loc.DisplayName(fields, *nameFormat), len(loc.QSOs))
 		}
 		return
 	}
@@ -87,13 +90,13 @@ func main() {
 
 	var allResults []ImportResult
 	for i, loc := range locations {
-		label := loc.DisplayName(fields)
+		label := loc.DisplayName(fields, *nameFormat)
 		fmt.Printf("[%d/%d] Processing %s (%d QSOs)\n", i+1, len(locations), label, len(loc.QSOs))
 
 		profileID, err := MatchProfile(loc, profiles, fields, returnedFields)
 		if err != nil {
 			fmt.Println("  No matching profile found, creating new station location...")
-			profileID, err = client.CreateStationProfile(loc, fields)
+			profileID, err = client.CreateStationProfile(loc, fields, *nameFormat)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  ERROR creating profile: %v\n", err)
 				for j := range loc.QSOs {
@@ -167,6 +170,14 @@ func parseFile(path string) ([]QSO, error) {
 	}
 	defer f.Close()
 	return ParseADIF(f)
+}
+
+func warnUnknownPlaceholders(format string, fields []string) {
+	for _, m := range placeholderRe.FindAllString(format, -1) {
+		if name := placeholderField(m); !slices.Contains(fields, name) {
+			fmt.Fprintf(os.Stderr, "Warning: -name-format placeholder {%s} is not in -match-fields, will be empty\n", name)
+		}
+	}
 }
 
 func parseMatchFields(s string) []string {
