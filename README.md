@@ -12,6 +12,8 @@ This tool helps first-time users to migrate their logs to Wavelog. Import ADIF f
 waveRover -url <url> -key <key> [options] <file.adi> [file2.adi ...]
 ```
 
+File arguments support glob wildcards: `*.adi`, `data/**/*.adi`, etc.
+
 ### Options
 
 | Flag | Default | Description |
@@ -47,6 +49,13 @@ Output shows all detected station locations and QSO counts without touching Wave
 
 ```
 waveRover -url https://log.example.com -key abc123 lotw_export.adi clublog.adi
+```
+
+### Wildcard import
+
+```
+waveRover -url https://log.example.com -key abc123 *.adi
+waveRover -url https://log.example.com -key abc123 ~/adif/**/*.adi
 ```
 
 ### Import a LoTW export
