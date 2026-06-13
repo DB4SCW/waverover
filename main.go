@@ -35,6 +35,7 @@ func main() {
 
 	fields := parseMatchFields(*matchFields)
 	warnUnknownPlaceholders(*nameFormat, fields)
+	fmt.Println("waveRover by DJ7NT")
 	fmt.Printf("Match fields: %v\nGrid precision: %d\nDry run: %v\n\n", fields, *gridPrecision, *dryRun)
 
 	var allQSOs []QSO
