@@ -113,7 +113,7 @@ func (c *WavelogClient) GetStationProfiles() ([]StationProfile, map[string]bool,
 	return profiles, returnedFields, nil
 }
 
-func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []string, nameFormat string, lookup bool) (string, error) {
+func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []string, nameFormat string, lookup bool, ituDefault string) (string, error) {
 	fields := loc.QSOs[0].Fields
 	name := loc.DisplayName(matchFields, nameFormat)
 
@@ -130,6 +130,18 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 		if err := c.enrichMandatoryFields(loc, payload); err != nil {
 			return "", err
 		}
+	}
+
+	// Wavelog accepts an empty station_itu at creation but then fails every QSO
+	// import for that profile, so ensure a zone is present. private_lookup does
+	// not return one, so fall back to -itu-zone or an interactive prompt.
+	if payload["station_itu"] == "" {
+		zone, err := resolveItuZone(name, ituDefault)
+		if err != nil {
+			return "", err
+		}
+		payload["station_itu"] = zone
+		fmt.Printf("  Applied ITU zone %s\n", zone)
 	}
 
 	resp, err := c.postRaw("/api/create_station", []map[string]string{payload})

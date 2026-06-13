@@ -1,9 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 )
+
+// stdinReader is shared across prompts so that buffered (non-interactive) input
+// is not lost between successive reads.
+var stdinReader = bufio.NewReader(os.Stdin)
 
 // CallsignLookup holds the fields we use from Wavelog's /api/private_lookup
 // response. The endpoint resolves DXCC info from a callsign's prefix; note it
@@ -79,4 +86,38 @@ func applyLookupToPayload(payload map[string]string, l *CallsignLookup) []string
 	fill("station_cq", l.CQZ)
 	fill("station_country", l.DXCC)
 	return filled
+}
+
+// normalizeItuZone returns the canonical ITU zone string ("1".."90") for a
+// numeric input, or "" if it is out of the valid 1-90 range or non-numeric.
+func normalizeItuZone(s string) string {
+	n, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil || n < 1 || n > 90 {
+		return ""
+	}
+	return strconv.Itoa(n)
+}
+
+// resolveItuZone supplies the ITU zone when the ADIF omits MY_ITU_ZONE.
+// Wavelog accepts an empty station_itu on profile creation, but then fails every
+// QSO import for that profile — so the zone must be set. If ituDefault is a
+// valid zone (e.g. supplied via -itu-zone) it is used directly; otherwise the
+// user is prompted once per location, scoped to the given profile label.
+func resolveItuZone(label, ituDefault string) (string, error) {
+	if ituDefault != "" {
+		if z := normalizeItuZone(ituDefault); z != "" {
+			return z, nil
+		}
+		return "", fmt.Errorf("invalid ITU zone %q (must be 1-90)", ituDefault)
+	}
+	fmt.Printf("  Location %q has no MY_ITU_ZONE, but Wavelog needs one to import QSOs.\n  Enter ITU zone (1-90): ", label)
+	line, err := stdinReader.ReadString('\n')
+	if err != nil && line == "" {
+		return "", fmt.Errorf("reading ITU zone: %w", err)
+	}
+	z := normalizeItuZone(line)
+	if z == "" {
+		return "", fmt.Errorf("no valid ITU zone provided for %q (must be 1-90)", label)
+	}
+	return z, nil
 }

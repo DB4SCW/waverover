@@ -25,6 +25,7 @@ File arguments support glob wildcards: `*.adi`, `data/**/*.adi`, etc.
 | `-name-format` | — | Profile name template with `{FIELD}` placeholders from match fields, e.g. `"{STATION_CALLSIGN} @ {MY_SOTA_REF}"`. Empty: name is built automatically from all match field values |
 | `-grid-precision` | `6` | Grid locator precision for grouping. `6` = full grid square, `4` = grid field only |
 | `-lookup` | `true` | When a new profile is missing DXCC/CQ/Country, resolve them from the station callsign via Wavelog's lookup. Set `-lookup=false` to disable |
+| `-itu-zone` | — | Default ITU zone for profiles missing `MY_ITU_ZONE` (Wavelog needs it to import QSOs). If empty, you are prompted per location |
 
 ### Getting your API key
 
@@ -124,9 +125,18 @@ Details:
 - **Fill-missing-only** — values already present in the ADIF are never overwritten.
 - **One lookup per callsign** — results are cached, so locations sharing a callsign reuse a
   single request. Matched/existing profiles trigger no lookup at all.
-- **ITU zone is not looked up** — `private_lookup` does not return it; Wavelog accepts profiles
-  with an empty ITU zone.
-- Disable with `-lookup=false` (e.g. offline runs).
+- **ITU zone is not looked up** — `private_lookup` does not return it. Wavelog lets you create a
+  profile with an empty ITU zone, but then fails every QSO import for that profile, so waveRover
+  never leaves it empty. When `MY_ITU_ZONE` is missing it falls back to `-itu-zone`, or prompts you
+  per location if that flag isn't set.
+
+  ```
+    Location "DL1ABC @ JO30OO" has no MY_ITU_ZONE, but Wavelog needs one to import QSOs.
+    Enter ITU zone (1-90): 28
+      Applied ITU zone 28
+  ```
+- Disable the DXCC/CQ/Country lookup with `-lookup=false` (e.g. offline runs). ITU fallback still
+  applies, since it does not depend on the lookup.
 
 If the lookup can't resolve a callsign, that station location is skipped with a warning and the
 run continues with the others. The QSOs appear under `Errors` in the summary:

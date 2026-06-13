@@ -17,6 +17,7 @@ func main() {
 	nameFormat := flag.String("name-format", "", "Profile name template with {FIELD} placeholders from match fields, e.g. \"{STATION_CALLSIGN} @ {MY_SOTA_REF}\" (empty: auto from match fields)")
 	gridPrecision := flag.Int("grid-precision", 6, "Grid locator precision (4 or 6)")
 	lookup := flag.Bool("lookup", true, "Look up missing DXCC/CQ/Country from the station callsign via Wavelog when creating a profile")
+	ituZone := flag.String("itu-zone", "", "Default ITU zone for profiles missing MY_ITU_ZONE (Wavelog needs it to import QSOs). If empty, prompt per location")
 	flag.Parse()
 
 	waveURL := coalesce(*url, os.Getenv("WAVELOG_URL"))
@@ -30,6 +31,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "\nEnvironment variables:")
 		fmt.Fprintln(os.Stderr, "  WAVELOG_URL      Wavelog base URL")
 		fmt.Fprintln(os.Stderr, "  WAVELOG_API_KEY  Wavelog API key")
+		os.Exit(1)
+	}
+
+	if *ituZone != "" && normalizeItuZone(*ituZone) == "" {
+		fmt.Fprintf(os.Stderr, "Invalid -itu-zone %q: must be an integer 1-90\n", *ituZone)
 		os.Exit(1)
 	}
 
@@ -99,7 +105,7 @@ func main() {
 		profileID, err := MatchProfile(loc, profiles, fields, returnedFields)
 		if err != nil {
 			fmt.Println("  No matching profile found, creating new station location...")
-			profileID, err = client.CreateStationProfile(loc, fields, *nameFormat, *lookup)
+			profileID, err = client.CreateStationProfile(loc, fields, *nameFormat, *lookup, *ituZone)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  ERROR creating profile: %v\n", err)
 				for j := range loc.QSOs {
