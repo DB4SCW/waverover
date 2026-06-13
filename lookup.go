@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -13,12 +14,13 @@ import (
 var stdinReader = bufio.NewReader(os.Stdin)
 
 // CallsignLookup holds the fields we use from Wavelog's /api/private_lookup
-// response. The endpoint resolves DXCC info from a callsign's prefix; note it
-// does NOT return an ITU zone.
+// response. The endpoint resolves DXCC info from a callsign's prefix, and may
+// also return an ITU zone under "dxcc_ituz" (a JSON number).
 type CallsignLookup struct {
-	DXCC   string `json:"dxcc"`     // country name -> station_country
-	DXCCID string `json:"dxcc_id"`  // DXCC entity id -> station_dxcc
-	CQZ    string `json:"dxcc_cqz"` // CQ zone -> station_cq
+	DXCC   string      `json:"dxcc"`     // country name -> station_country
+	DXCCID string      `json:"dxcc_id"`  // DXCC entity id -> station_dxcc
+	CQZ    string      `json:"dxcc_cqz"` // CQ zone -> station_cq
+	ItuZ   json.Number `json:"dxcc_ituz"` // ITU zone (number) -> station_itu
 }
 
 // lookupCallsign resolves DXCC info for a callsign via Wavelog, caching results
@@ -37,6 +39,22 @@ func (c *WavelogClient) lookupCallsign(callsign string) (*CallsignLookup, error)
 	}
 	c.lookupCache[callsign] = &resp
 	return &resp, nil
+}
+
+// lookupItuZone returns a valid ITU zone (1-90) from the callsign's
+// private_lookup result, or "" if unavailable/invalid. It reuses the
+// lookupCallsign cache, so no extra request is made when the callsign was
+// already looked up for DXCC/CQ enrichment.
+func (c *WavelogClient) lookupItuZone(loc StationLocation) string {
+	call := loc.QSOs[0].GetField(FieldAliases["STATION_CALLSIGN"]...)
+	if call == "" {
+		return ""
+	}
+	l, err := c.lookupCallsign(call)
+	if err != nil {
+		return ""
+	}
+	return normalizeItuZone(string(l.ItuZ))
 }
 
 // mandatoryStationFieldsMissing reports whether any field that Wavelog needs to

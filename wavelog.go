@@ -133,8 +133,14 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 	}
 
 	// Wavelog accepts an empty station_itu at creation but then fails every QSO
-	// import for that profile, so ensure a zone is present. private_lookup does
-	// not return one, so fall back to -itu-zone or an interactive prompt.
+	// import for that profile, so ensure a zone is present. Prefer the ITU zone
+	// from private_lookup; if it has none, fall back to -itu-zone or a prompt.
+	if payload["station_itu"] == "" && lookup {
+		if z := c.lookupItuZone(loc); z != "" {
+			payload["station_itu"] = z
+			fmt.Printf("  Looked up ITU zone %s\n", z)
+		}
+	}
 	if payload["station_itu"] == "" {
 		zone, err := resolveItuZone(name, ituDefault)
 		if err != nil {
