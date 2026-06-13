@@ -10,9 +10,10 @@ import (
 )
 
 type WavelogClient struct {
-	BaseURL string
-	APIKey  string
-	client  *http.Client
+	BaseURL     string
+	APIKey      string
+	client      *http.Client
+	lookupCache map[string]*CallsignLookup
 }
 
 type StationProfile struct {
@@ -51,9 +52,10 @@ type ImportResult struct {
 
 func NewWavelogClient(baseURL, apiKey string) *WavelogClient {
 	return &WavelogClient{
-		BaseURL: strings.TrimRight(baseURL, "/"),
-		APIKey:  apiKey,
-		client:  &http.Client{},
+		BaseURL:     strings.TrimRight(baseURL, "/"),
+		APIKey:      apiKey,
+		client:      &http.Client{},
+		lookupCache: make(map[string]*CallsignLookup),
 	}
 }
 
@@ -111,7 +113,7 @@ func (c *WavelogClient) GetStationProfiles() ([]StationProfile, map[string]bool,
 	return profiles, returnedFields, nil
 }
 
-func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []string, nameFormat string) (string, error) {
+func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []string, nameFormat string, lookup bool) (string, error) {
 	fields := loc.QSOs[0].Fields
 	name := loc.DisplayName(matchFields, nameFormat)
 
@@ -122,6 +124,12 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 	}
 	for adifName, jsonKey := range KnownFields {
 		payload[jsonKey] = fields[adifName]
+	}
+
+	if lookup && mandatoryStationFieldsMissing(payload) {
+		if err := c.enrichMandatoryFields(loc, payload); err != nil {
+			return "", err
+		}
 	}
 
 	resp, err := c.postRaw("/api/create_station", []map[string]string{payload})

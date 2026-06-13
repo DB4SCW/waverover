@@ -16,6 +16,7 @@ func main() {
 	matchFields := flag.String("match-fields", "STATION_CALLSIGN,MY_GRIDSQUARE", "Comma-separated ADIF fields for station location matching")
 	nameFormat := flag.String("name-format", "", "Profile name template with {FIELD} placeholders from match fields, e.g. \"{STATION_CALLSIGN} @ {MY_SOTA_REF}\" (empty: auto from match fields)")
 	gridPrecision := flag.Int("grid-precision", 6, "Grid locator precision (4 or 6)")
+	lookup := flag.Bool("lookup", true, "Look up missing DXCC/CQ/Country from the station callsign via Wavelog when creating a profile")
 	flag.Parse()
 
 	waveURL := coalesce(*url, os.Getenv("WAVELOG_URL"))
@@ -97,7 +98,7 @@ func main() {
 		profileID, err := MatchProfile(loc, profiles, fields, returnedFields)
 		if err != nil {
 			fmt.Println("  No matching profile found, creating new station location...")
-			profileID, err = client.CreateStationProfile(loc, fields, *nameFormat)
+			profileID, err = client.CreateStationProfile(loc, fields, *nameFormat, *lookup)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  ERROR creating profile: %v\n", err)
 				for j := range loc.QSOs {

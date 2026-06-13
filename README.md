@@ -24,6 +24,7 @@ File arguments support glob wildcards: `*.adi`, `data/**/*.adi`, etc.
 | `-match-fields` | `STATION_CALLSIGN,MY_GRIDSQUARE` | Comma-separated ADIF fields that define a unique station location |
 | `-name-format` | — | Profile name template with `{FIELD}` placeholders from match fields, e.g. `"{STATION_CALLSIGN} @ {MY_SOTA_REF}"`. Empty: name is built automatically from all match field values |
 | `-grid-precision` | `6` | Grid locator precision for grouping. `6` = full grid square, `4` = grid field only |
+| `-lookup` | `true` | When a new profile is missing DXCC/CQ/Country, resolve them from the station callsign via Wavelog's lookup. Set `-lookup=false` to disable |
 
 ### Getting your API key
 
@@ -105,6 +106,35 @@ export WAVELOG_API_KEY=abc123
 waveRover my_log.adi
 ```
 
+## Missing station data (DXCC/CQ/Country lookup)
+
+Wavelog needs DXCC, CQ zone, and country to create a station profile. ADIFs that lack the
+`MY_DXCC`, `MY_CQ_ZONE`, and `MY_COUNTRY` fields would otherwise fail at profile creation.
+
+When a new profile is missing any of these, the tool resolves them from the station's own
+callsign (`STATION_CALLSIGN`, falling back to `MY_STATION_CALLSIGN` / `OPERATOR`) via Wavelog's
+`private_lookup` API and fills the gaps:
+
+```
+  Looked up DL1ABC → DXCC 230 (FEDERAL REPUBLIC OF GERMANY), CQ 14
+```
+
+Details:
+
+- **Fill-missing-only** — values already present in the ADIF are never overwritten.
+- **One lookup per callsign** — results are cached, so locations sharing a callsign reuse a
+  single request. Matched/existing profiles trigger no lookup at all.
+- **ITU zone is not looked up** — `private_lookup` does not return it; Wavelog accepts profiles
+  with an empty ITU zone.
+- Disable with `-lookup=false` (e.g. offline runs).
+
+If the lookup can't resolve a callsign, that station location is skipped with a warning and the
+run continues with the others. The QSOs appear under `Errors` in the summary:
+
+```
+  ERROR creating profile: cannot resolve mandatory station fields (DXCC/CQ/Country) for "DL1ABC" via lookup: no DXCC entity returned
+```
+
 ## Re-running and duplicates
 
 The tool is idempotent — you can safely re-import the same ADIF file. QSOs that already exist in Wavelog are detected as duplicates and skipped. The summary at the end lists each duplicate by callsign, band, mode, date, and time:
@@ -161,7 +191,7 @@ Note the following version requirements:
 3. Fetches existing station profiles from Wavelog
 4. For each location:
    - Matches against existing profiles (callsign, grid, and any additional match fields)
-   - Creates a new station profile if no match is found (named from the match field values, or your `-name-format` template)
+   - Creates a new station profile if no match is found (named from the match field values, or your `-name-format` template). Missing DXCC/CQ/Country are resolved from the station callsign — see [Missing station data](#missing-station-data-dxcccqcountry-lookup)
    - Imports all QSOs in 1MB chunks
 5. If a chunk contains duplicates, parses the API response to identify which QSOs are dupes, imports the remaining QSOs individually
 6. Prints a summary with counts and details for any duplicates or errors
