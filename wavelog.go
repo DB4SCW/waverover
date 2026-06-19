@@ -6,14 +6,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
+	"time"
 )
 
 type WavelogClient struct {
 	BaseURL     string
 	APIKey      string
 	client      *http.Client
-	lookupCache map[string]*CallsignLookup
+	lookupCache map[string]lookupCacheEntry
 }
 
 type StationProfile struct {
@@ -54,8 +56,8 @@ func NewWavelogClient(baseURL, apiKey string) *WavelogClient {
 	return &WavelogClient{
 		BaseURL:     strings.TrimRight(baseURL, "/"),
 		APIKey:      apiKey,
-		client:      &http.Client{},
-		lookupCache: make(map[string]*CallsignLookup),
+		client:      &http.Client{Timeout: 60 * time.Second},
+		lookupCache: make(map[string]lookupCacheEntry),
 	}
 }
 
@@ -113,7 +115,7 @@ func (c *WavelogClient) GetStationProfiles() ([]StationProfile, map[string]bool,
 	return profiles, returnedFields, nil
 }
 
-func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []string, nameFormat string, lookup bool, ituDefault string) (string, error) {
+func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []string, nameFormat string, lookup bool, ituDefault string) (string, []StationProfile, map[string]bool, error) {
 	fields := loc.QSOs[0].Fields
 	name := loc.DisplayName(matchFields, nameFormat)
 
@@ -128,7 +130,7 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 
 	if lookup && mandatoryStationFieldsMissing(payload) {
 		if err := c.enrichMandatoryFields(loc, payload); err != nil {
-			return "", err
+			return "", nil, nil, err
 		}
 	}
 
@@ -144,7 +146,7 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 	if payload["station_itu"] == "" {
 		zone, err := resolveItuZone(name, ituDefault)
 		if err != nil {
-			return "", err
+			return "", nil, nil, err
 		}
 		payload["station_itu"] = zone
 		fmt.Printf("  Applied ITU zone %s\n", zone)
@@ -152,7 +154,7 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 
 	resp, err := c.postRaw("/api/create_station", []map[string]string{payload})
 	if err != nil {
-		return "", err
+		return "", nil, nil, err
 	}
 	defer resp.Body.Close()
 
@@ -162,7 +164,7 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 		Message string `json:"message"`
 	}
 	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return "", fmt.Errorf("parsing create_station response (%d): %s", resp.StatusCode, string(body))
+		return "", nil, nil, fmt.Errorf("parsing create_station response (%d): %s", resp.StatusCode, string(body))
 	}
 
 	switch {
@@ -173,20 +175,20 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 		fmt.Printf("  Station profile already exists (dupe): %s\n", name)
 		return c.resolveProfileID(loc, matchFields)
 	default:
-		return "", fmt.Errorf("create_station returned %d: %s", resp.StatusCode, apiResp.Message)
+		return "", nil, nil, fmt.Errorf("create_station returned %d: %s", resp.StatusCode, apiResp.Message)
 	}
 }
 
-func (c *WavelogClient) resolveProfileID(loc StationLocation, matchFields []string) (string, error) {
+func (c *WavelogClient) resolveProfileID(loc StationLocation, matchFields []string) (string, []StationProfile, map[string]bool, error) {
 	profiles, returnedFields, err := c.GetStationProfiles()
 	if err != nil {
-		return "", fmt.Errorf("re-fetching profiles after create: %w", err)
+		return "", nil, nil, fmt.Errorf("re-fetching profiles after create: %w", err)
 	}
 	id, err := MatchProfile(loc, profiles, matchFields, returnedFields)
 	if err != nil {
-		return "", fmt.Errorf("finding newly created profile: %w", err)
+		return "", nil, nil, fmt.Errorf("finding newly created profile: %w", err)
 	}
-	return id, nil
+	return id, profiles, returnedFields, nil
 }
 
 func (c *WavelogClient) postRaw(path string, payload interface{}) (*http.Response, error) {
@@ -542,9 +544,9 @@ func WarnUnsupportedFields(matchFields []string, returnedFields map[string]bool)
 		upper := strings.ToUpper(field)
 		jsonKey, known := KnownFields[upper]
 		if !known {
-			fmt.Printf("  WARNING: unknown match field %q — no mapping to Wavelog API\n", field)
+			fmt.Fprintf(os.Stderr, "  WARNING: unknown match field %q — no mapping to Wavelog API\n", field)
 		} else if !returnedFields[jsonKey] {
-			fmt.Printf("  WARNING: field %q not returned by Wavelog API — skipped for matching\n", field)
+			fmt.Fprintf(os.Stderr, "  WARNING: field %q not returned by Wavelog API — skipped for matching\n", field)
 		}
 	}
 }

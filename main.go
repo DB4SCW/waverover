@@ -105,7 +105,9 @@ func main() {
 		profileID, err := MatchProfile(loc, profiles, fields, returnedFields)
 		if err != nil {
 			fmt.Println("  No matching profile found, creating new station location...")
-			profileID, err = client.CreateStationProfile(loc, fields, *nameFormat, *lookup, *ituZone)
+			var newProfiles []StationProfile
+			var newReturnedFields map[string]bool
+			profileID, newProfiles, newReturnedFields, err = client.CreateStationProfile(loc, fields, *nameFormat, *lookup, *ituZone)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  ERROR creating profile: %v\n", err)
 				for j := range loc.QSOs {
@@ -113,7 +115,7 @@ func main() {
 				}
 				continue
 			}
-			profiles, returnedFields, _ = client.GetStationProfiles()
+			profiles, returnedFields = newProfiles, newReturnedFields
 		} else {
 			fmt.Printf("  Matched existing profile #%s\n", profileID)
 		}

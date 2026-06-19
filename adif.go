@@ -18,6 +18,7 @@ func ParseADIF(r io.Reader) ([]QSO, error) {
 	headerSkipped := false
 	var qsos []QSO
 	var buf bytes.Buffer
+	var readErr error
 
 	extractRecords := func() {
 		for {
@@ -63,6 +64,9 @@ func ParseADIF(r io.Reader) ([]QSO, error) {
 					buf.Reset()
 				}
 				if err != nil {
+					if err != io.EOF {
+						readErr = err
+					}
 					break
 				}
 				continue
@@ -72,12 +76,15 @@ func ParseADIF(r io.Reader) ([]QSO, error) {
 		extractRecords()
 
 		if err != nil {
+			if err != io.EOF {
+				readErr = err
+			}
 			break
 		}
 	}
 
 	extractRecords()
-	return qsos, nil
+	return qsos, readErr
 }
 
 func parseFields(record string) map[string]string {

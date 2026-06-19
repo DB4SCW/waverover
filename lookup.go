@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -12,6 +13,20 @@ import (
 // stdinReader is shared across prompts so that buffered (non-interactive) input
 // is not lost between successive reads.
 var stdinReader = bufio.NewReader(os.Stdin)
+
+// errLookupNoEntity signals a definitive lookup result: the callsign resolved
+// but the response carried no DXCC entity. Such failures are deterministic, so
+// the result is negatively cached to avoid re-querying the same unresolvable
+// callsign for every location that shares it.
+var errLookupNoEntity = errors.New("lookup returned no DXCC entity")
+
+// lookupCacheEntry holds a successful lookup result (res != nil, err == nil)
+// or a cached definitive failure (res == nil, err != nil). Transient errors
+// (network, decode) are never stored here so they remain retriable.
+type lookupCacheEntry struct {
+	res *CallsignLookup
+	err error
+}
 
 // CallsignLookup holds the fields we use from Wavelog's /api/private_lookup
 // response. The endpoint resolves DXCC info from a callsign's prefix, and may
@@ -30,15 +45,27 @@ func (c *WavelogClient) lookupCallsign(callsign string) (*CallsignLookup, error)
 	if callsign == "" {
 		return nil, fmt.Errorf("empty callsign")
 	}
-	if v, ok := c.lookupCache[callsign]; ok {
-		return v, nil
+	if e, ok := c.lookupCache[callsign]; ok {
+		return e.res, e.err
 	}
 	var resp CallsignLookup
 	if err := c.post("/api/private_lookup", map[string]string{"key": c.APIKey, "callsign": callsign}, &resp); err != nil {
+		// Transient (network / decode) failure: do not cache so the next
+		// location sharing this callsign still gets a retry.
 		return nil, err
 	}
-	c.lookupCache[callsign] = &resp
+	c.lookupCache[callsign] = lookupCacheEntry{res: &resp}
 	return &resp, nil
+}
+
+// cacheLookupFailure records a definitive lookup failure (currently only
+// errLookupNoEntity) so subsequent lookups for the same callsign short-circuit
+// without hitting the API again. Non-matching errors are ignored.
+func (c *WavelogClient) cacheLookupFailure(callsign string, err error) {
+	if !errors.Is(err, errLookupNoEntity) {
+		return
+	}
+	c.lookupCache[strings.ToUpper(strings.TrimSpace(callsign))] = lookupCacheEntry{err: err}
 }
 
 // lookupItuZone returns a valid ITU zone (1-90) from the callsign's
@@ -77,7 +104,8 @@ func (c *WavelogClient) enrichMandatoryFields(loc StationLocation, payload map[s
 		return fmt.Errorf("cannot resolve mandatory station fields (DXCC/CQ/Country) for %q via lookup: %w", call, err)
 	}
 	if l.DXCCID == "" {
-		return fmt.Errorf("cannot resolve mandatory station fields (DXCC/CQ/Country) for %q via lookup: no DXCC entity returned", call)
+		c.cacheLookupFailure(call, errLookupNoEntity)
+		return fmt.Errorf("cannot resolve mandatory station fields (DXCC/CQ/Country) for %q via lookup: no DXCC entity returned: %w", call, errLookupNoEntity)
 	}
 	if filled := applyLookupToPayload(payload, l); len(filled) > 0 {
 		fmt.Printf("  Looked up %s → DXCC %s (%s), CQ %s\n", strings.ToUpper(call), l.DXCCID, l.DXCC, l.CQZ)
