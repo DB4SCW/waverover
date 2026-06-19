@@ -68,16 +68,25 @@ func (c *WavelogClient) cacheLookupFailure(callsign string, err error) {
 	c.lookupCache[strings.ToUpper(strings.TrimSpace(callsign))] = lookupCacheEntry{err: err}
 }
 
+// stationCallsignLookup resolves the originating station callsign of a location
+// and looks it up via Wavelog. It returns the lookup result, the (normalized)
+// callsign, and any error. An empty callsign yields a dedicated error so callers
+// can distinguish "no callsign at all" from a failed lookup.
+func (c *WavelogClient) stationCallsignLookup(loc StationLocation) (*CallsignLookup, string, error) {
+	call := loc.QSOs[0].GetField(FieldAliases["STATION_CALLSIGN"]...)
+	if call == "" {
+		return nil, "", fmt.Errorf("no station callsign in QSOs")
+	}
+	l, err := c.lookupCallsign(call)
+	return l, call, err
+}
+
 // lookupItuZone returns a valid ITU zone (1-90) from the callsign's
 // private_lookup result, or "" if unavailable/invalid. It reuses the
 // lookupCallsign cache, so no extra request is made when the callsign was
 // already looked up for DXCC/CQ enrichment.
 func (c *WavelogClient) lookupItuZone(loc StationLocation) string {
-	call := loc.QSOs[0].GetField(FieldAliases["STATION_CALLSIGN"]...)
-	if call == "" {
-		return ""
-	}
-	l, err := c.lookupCallsign(call)
+	l, _, err := c.stationCallsignLookup(loc)
 	if err != nil {
 		return ""
 	}
@@ -95,12 +104,11 @@ func mandatoryStationFieldsMissing(payload map[string]string) bool {
 // (so the caller can warn+skip the location) when the callsign can't be resolved
 // or the lookup yields no DXCC entity.
 func (c *WavelogClient) enrichMandatoryFields(loc StationLocation, payload map[string]string) error {
-	call := loc.QSOs[0].GetField(FieldAliases["STATION_CALLSIGN"]...)
-	if call == "" {
-		return fmt.Errorf("cannot resolve mandatory station fields (DXCC/CQ/Country): no station callsign in QSOs")
-	}
-	l, err := c.lookupCallsign(call)
+	l, call, err := c.stationCallsignLookup(loc)
 	if err != nil {
+		if call == "" {
+			return fmt.Errorf("cannot resolve mandatory station fields (DXCC/CQ/Country): %w", err)
+		}
 		return fmt.Errorf("cannot resolve mandatory station fields (DXCC/CQ/Country) for %q via lookup: %w", call, err)
 	}
 	if l.DXCCID == "" {

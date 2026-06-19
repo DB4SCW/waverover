@@ -23,6 +23,15 @@ type StationProfile struct {
 	Raw map[string]string
 }
 
+// CreateProfileResult is returned by CreateStationProfile: the newly resolved
+// profile id plus the freshly fetched profiles/returnedFields so callers can
+// update their cache without a second GetStationProfiles round-trip.
+type CreateProfileResult struct {
+	ProfileID      string
+	Profiles       []StationProfile
+	ReturnedFields map[string]bool
+}
+
 var KnownFields = map[string]string{
 	"STATION_CALLSIGN": "station_callsign",
 	"MY_GRIDSQUARE":    "station_gridsquare",
@@ -115,7 +124,7 @@ func (c *WavelogClient) GetStationProfiles() ([]StationProfile, map[string]bool,
 	return profiles, returnedFields, nil
 }
 
-func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []string, nameFormat string, lookup bool, ituDefault string) (string, []StationProfile, map[string]bool, error) {
+func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []string, nameFormat string, lookup bool, ituDefault string) (CreateProfileResult, error) {
 	fields := loc.QSOs[0].Fields
 	name := loc.DisplayName(matchFields, nameFormat)
 
@@ -130,7 +139,7 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 
 	if lookup && mandatoryStationFieldsMissing(payload) {
 		if err := c.enrichMandatoryFields(loc, payload); err != nil {
-			return "", nil, nil, err
+			return CreateProfileResult{}, err
 		}
 	}
 
@@ -146,7 +155,7 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 	if payload["station_itu"] == "" {
 		zone, err := resolveItuZone(name, ituDefault)
 		if err != nil {
-			return "", nil, nil, err
+			return CreateProfileResult{}, err
 		}
 		payload["station_itu"] = zone
 		fmt.Printf("  Applied ITU zone %s\n", zone)
@@ -154,7 +163,7 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 
 	resp, err := c.postRaw("/api/create_station", []map[string]string{payload})
 	if err != nil {
-		return "", nil, nil, err
+		return CreateProfileResult{}, err
 	}
 	defer resp.Body.Close()
 
@@ -164,7 +173,7 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 		Message string `json:"message"`
 	}
 	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return "", nil, nil, fmt.Errorf("parsing create_station response (%d): %s", resp.StatusCode, string(body))
+		return CreateProfileResult{}, fmt.Errorf("parsing create_station response (%d): %s", resp.StatusCode, string(body))
 	}
 
 	switch {
@@ -175,20 +184,20 @@ func (c *WavelogClient) CreateStationProfile(loc StationLocation, matchFields []
 		fmt.Printf("  Station profile already exists (dupe): %s\n", name)
 		return c.resolveProfileID(loc, matchFields)
 	default:
-		return "", nil, nil, fmt.Errorf("create_station returned %d: %s", resp.StatusCode, apiResp.Message)
+		return CreateProfileResult{}, fmt.Errorf("create_station returned %d: %s", resp.StatusCode, apiResp.Message)
 	}
 }
 
-func (c *WavelogClient) resolveProfileID(loc StationLocation, matchFields []string) (string, []StationProfile, map[string]bool, error) {
+func (c *WavelogClient) resolveProfileID(loc StationLocation, matchFields []string) (CreateProfileResult, error) {
 	profiles, returnedFields, err := c.GetStationProfiles()
 	if err != nil {
-		return "", nil, nil, fmt.Errorf("re-fetching profiles after create: %w", err)
+		return CreateProfileResult{}, fmt.Errorf("re-fetching profiles after create: %w", err)
 	}
 	id, err := MatchProfile(loc, profiles, matchFields, returnedFields)
 	if err != nil {
-		return "", nil, nil, fmt.Errorf("finding newly created profile: %w", err)
+		return CreateProfileResult{}, fmt.Errorf("finding newly created profile: %w", err)
 	}
-	return id, profiles, returnedFields, nil
+	return CreateProfileResult{ProfileID: id, Profiles: profiles, ReturnedFields: returnedFields}, nil
 }
 
 func (c *WavelogClient) postRaw(path string, payload interface{}) (*http.Response, error) {

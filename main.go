@@ -105,17 +105,16 @@ func main() {
 		profileID, err := MatchProfile(loc, profiles, fields, returnedFields)
 		if err != nil {
 			fmt.Println("  No matching profile found, creating new station location...")
-			var newProfiles []StationProfile
-			var newReturnedFields map[string]bool
-			profileID, newProfiles, newReturnedFields, err = client.CreateStationProfile(loc, fields, *nameFormat, *lookup, *ituZone)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "  ERROR creating profile: %v\n", err)
+			created, createErr := client.CreateStationProfile(loc, fields, *nameFormat, *lookup, *ituZone)
+			if createErr != nil {
+				fmt.Fprintf(os.Stderr, "  ERROR creating profile: %v\n", createErr)
 				for j := range loc.QSOs {
-					allResults = append(allResults, ImportResult{QSO: &loc.QSOs[j], Status: "error", Err: err})
+					allResults = append(allResults, ImportResult{QSO: &loc.QSOs[j], Status: "error", Err: createErr})
 				}
 				continue
 			}
-			profiles, returnedFields = newProfiles, newReturnedFields
+			profileID = created.ProfileID
+			profiles, returnedFields = created.Profiles, created.ReturnedFields
 		} else {
 			fmt.Printf("  Matched existing profile #%s\n", profileID)
 		}
